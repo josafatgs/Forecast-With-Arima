@@ -230,7 +230,7 @@ uploaded_fileAllData = st.file_uploader("Choose a All Data file", key='allData')
 if uploaded_file is not None and uploaded_fileAllData is not None:
     # Can be used wherever a "file-like" object is accepted:
     dataframe = pd.read_csv(uploaded_file, delimiter=',', encoding='utf-8', dtype={'Categoría': str})
-    dataframeAllData = pd.read_csv('./All_Data.csv', parse_dates=['Fecha venta'], dayfirst=True)
+    dataframeAllData = pd.read_csv(uploaded_fileAllData, parse_dates=['Fecha venta'], dayfirst=True)
     st.write(dataframe.head())
     st.markdown("Antes de continuar verifica que las columnas **SKU** y **Categoría** existan.")
     st.write(dataframeAllData.head())
