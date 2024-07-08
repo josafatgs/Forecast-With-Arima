@@ -118,6 +118,16 @@ def executeForecast(dataframeProducts, dataframeAllData):
     data.loc[:,'Sku'] = pd.to_numeric(data['Sku'], errors='coerce')
     #data['Sku'] = data['Sku'].astype(str)
     data.loc[:,'Cantidad vendida'] = pd.to_numeric(data['Cantidad vendida'], errors='coerce')
+    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
+    # Agregar columna con el inicio de la semana  
+    data['Week Start'] = data['Fecha venta'].dt.to_period('W-MON').dt.start_time
+
+    # Agregar columna con el número de semana
+    data['Week'] = data.groupby(grouper).ngroup() + 1
+    
+    last_week_start = data['Week Start'].max()
+    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
+
         
     results = []
 
@@ -129,11 +139,18 @@ def executeForecast(dataframeProducts, dataframeAllData):
         
         data_to_plot = data.query(f"Sku == {sku}")
 
-        grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
-        data_to_plot.loc[:,'Week'] = data_to_plot.groupby(grouper).ngroup() + 1
-        data_to_plot.loc[:,'Cantidad vendida'] = pd.to_numeric(data_to_plot['Cantidad vendida'], errors='coerce')
+        # Agregar columna con el inicio de la semana
+        #data_to_plot['Week Start'] = data_to_plot['Fecha venta'].dt.to_period('W-MON').dt.start_time
 
-        df = data_to_plot.groupby('Week', as_index=False)['Cantidad vendida'].sum()
+        # Agregar columna con el número de semana
+        #data_to_plot['Week'] = data_to_plot.groupby(grouper).ngroup() + 1
+        
+    
+
+        # Convertir 'Cantidad vendida' a numérico
+        data_to_plot['Cantidad vendida'] = pd.to_numeric(data_to_plot['Cantidad vendida'], errors='coerce')
+
+        df = data_to_plot.groupby('Week Start', as_index=False)['Cantidad vendida'].sum()
         
         if df['Cantidad vendida'].max() == df['Cantidad vendida'].min():
             continue
@@ -198,7 +215,7 @@ def executeForecast(dataframeProducts, dataframeAllData):
         
         results.append([sku] +  [str(x) for x in numeric_forecast_values])
 
-    columns = ['SKU'] + [f'Forecast_{i+1}' for i in range(5)]
+    columns = ['SKU'] + next_week_starts
     forecast_df = pd.DataFrame(results, columns=columns)
     
     st.write(forecast_df)
