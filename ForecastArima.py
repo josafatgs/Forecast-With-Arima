@@ -100,10 +100,10 @@ def stationary(df, column_name):
     return forecast_weeks, forecast
 
 
-def executeForecast(dataframe):
+def executeForecast(dataframeProducts, dataframeAllData):
     
     # Carga de datos con conversión de tipos
-    products = dataframe
+    products = dataframeProducts
     products.loc[:,'SKU'] = pd.to_numeric(products['SKU'], errors='coerce')
 
     # Filtrar y seleccionar en un solo paso
@@ -114,7 +114,7 @@ def executeForecast(dataframe):
 
 
 
-    data = pd.read_csv('./All_Data.csv', parse_dates=['Fecha venta'], dayfirst=True)
+    data = dataframeAllData
     data.loc[:,'Sku'] = pd.to_numeric(data['Sku'], errors='coerce')
     #data['Sku'] = data['Sku'].astype(str)
     data.loc[:,'Cantidad vendida'] = pd.to_numeric(data['Cantidad vendida'], errors='coerce')
@@ -226,14 +226,18 @@ st.title('Pronosticos de Ventas (ARIMA)')
 st.subheader('Carga de Productos :red[*]')
 st.markdown("Es necesario que cargue un archivo CSV con los productos a los que deseas hacer el pronostico de ventas, el archivo debe contener las columnas **SKU** y **Categoría**.")
 uploaded_file = st.file_uploader("Choose a products file", key='products')
-if uploaded_file is not None:
+uploaded_fileAllData = st.file_uploader("Choose a All Data file", key='allData')
+if uploaded_file is not None and uploaded_fileAllData is not None:
     # Can be used wherever a "file-like" object is accepted:
     dataframe = pd.read_csv(uploaded_file, delimiter=',', encoding='utf-8', dtype={'Categoría': str})
+    dataframeAllData = pd.read_csv('./All_Data.csv', parse_dates=['Fecha venta'], dayfirst=True)
     st.write(dataframe.head())
     st.markdown("Antes de continuar verifica que las columnas **SKU** y **Categoría** existan.")
+    st.write(dataframeAllData.head())
+    st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
 
     if st.button("Run Forecast"):
-        executeForecast(dataframe)
+        executeForecast(dataframe, dataframeAllData)
     
 st.subheader('Actualizacion de ventas')
 st.markdown("Es necesario que cargue un archivo CSV con las ventas de los productos, el archivo debe contener las columnas **Sku**, **Fecha venta** y **Cantidad vendida**.")
