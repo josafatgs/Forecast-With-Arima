@@ -227,15 +227,21 @@ st.subheader('Carga de Productos :red[*]')
 st.markdown("Es necesario que cargue un archivo CSV con los productos a los que deseas hacer el pronostico de ventas, el archivo debe contener las columnas **SKU** y **Categoría**.")
 uploaded_file = st.file_uploader("Choose a products file", key='products')
 uploaded_fileAllData = st.file_uploader("Choose a All Data file", key='allData')
-if uploaded_file is not None and uploaded_fileAllData is not None:
-    # Can be used wherever a "file-like" object is accepted:
+
+dataframe = 0
+dataframeAllData = 0   
+
+if uploaded_file is not None:
     dataframe = pd.read_csv(uploaded_file, delimiter=',', encoding='utf-8', dtype={'Categoría': str})
-    dataframeAllData = pd.read_csv(uploaded_fileAllData, parse_dates=['Fecha venta'], dayfirst=True)
     st.write(dataframe.head())
     st.markdown("Antes de continuar verifica que las columnas **SKU** y **Categoría** existan.")
+    
+if uploaded_fileAllData is not None:
+    dataframeAllData = pd.read_csv('./All_Data.csv', parse_dates=['Fecha venta'], dayfirst=True)
     st.write(dataframeAllData.head())
     st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
-
+    
+if uploaded_file is not None and uploaded_fileAllData is not None:
     if st.button("Run Forecast"):
         executeForecast(dataframe, dataframeAllData)
     
