@@ -118,6 +118,14 @@ def executeForecast(dataframeProducts, dataframeAllData):
     data.loc[:,'Sku'] = pd.to_numeric(data['Sku'], errors='coerce')
     #data['Sku'] = data['Sku'].astype(str)
     data.loc[:,'Cantidad vendida'] = pd.to_numeric(data['Cantidad vendida'], errors='coerce')
+    
+    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
+    # Agregar columna con el inicio de la semana  
+    data['Week Start'] = data['Fecha venta'].dt.to_period('W-MON').dt.start_time
+    
+    last_week_start = data['Week Start'].max()
+    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
+
         
     results = []
 
@@ -129,9 +137,13 @@ def executeForecast(dataframeProducts, dataframeAllData):
         
         data_to_plot = data.query(f"Sku == {sku}")
 
-        grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
-        data_to_plot.loc[:,'Week'] = data_to_plot.groupby(grouper).ngroup() + 1
-        data_to_plot.loc[:,'Cantidad vendida'] = pd.to_numeric(data_to_plot['Cantidad vendida'], errors='coerce')
+        # Agregar columna con el número de semana
+        data_to_plot['Week'] = data_to_plot.groupby(grouper).ngroup() + 1
+        
+    
+
+        # Convertir 'Cantidad vendida' a numérico
+        data_to_plot['Cantidad vendida'] = pd.to_numeric(data_to_plot['Cantidad vendida'], errors='coerce')
 
         df = data_to_plot.groupby('Week', as_index=False)['Cantidad vendida'].sum()
         
@@ -198,18 +210,23 @@ def executeForecast(dataframeProducts, dataframeAllData):
         
         results.append([sku] +  [str(x) for x in numeric_forecast_values])
 
-    columns = ['SKU'] + [f'Forecast_{i+1}' for i in range(5)]
+    columns = ['SKU'] + next_week_starts
     forecast_df = pd.DataFrame(results, columns=columns)
     
     st.write(forecast_df)
 
     #forecast_df.to_csv('forecast_results_separated.csv', index=False)
 
+@st.cache_data
+def convert_df(df):
+    # IMPORTANT: Cache the conversion to prevent computation on every rerun
+    return df.to_csv().encode("utf-8")
+
 
 def merge_files(dataframe, fileTwo):
     # Leer cada archivo CSV y agregarlo a la lista
     df1 = dataframe
-    df2 = pd.read_csv(fileTwo)
+    df2 = fileTwo
     
     # Concatenar todos los dataframes en uno solo
     merged_df = pd.concat([df1, df2], ignore_index=True)
@@ -217,9 +234,18 @@ def merge_files(dataframe, fileTwo):
     merged_df = merged_df.drop_duplicates()
     
     # Guardar el dataframe concatenado en un archivo CSV
-    merged_df.to_csv('All_Data.csv', index=False)
+    #merged_df.to_csv('All_Data.csv', index=False)
     
-    print(f"Todos los archivos CSV han sido unidos en All_Data.csv")
+    csv = convert_df(merged_df)
+
+    st.download_button(
+        label="Download data as CSV",
+        data=csv,
+        file_name="./All_Data.csv",
+        mime="text/csv",
+    )
+    
+    return merged_df
 
 st.title('Pronosticos de Ventas (ARIMA)')
 
@@ -237,7 +263,7 @@ if uploaded_file is not None:
     st.markdown("Antes de continuar verifica que las columnas **SKU** y **Categoría** existan.")
     
 if uploaded_fileAllData is not None:
-    dataframeAllData = pd.read_csv('./All_Data.csv', parse_dates=['Fecha venta'], dayfirst=True)
+    dataframeAllData = pd.read_csv(uploaded_fileAllData, parse_dates=['Fecha venta'], dayfirst=True)
     st.write(dataframeAllData.head())
     st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
     
@@ -248,15 +274,28 @@ if uploaded_file is not None and uploaded_fileAllData is not None:
 st.subheader('Actualizacion de ventas')
 st.markdown("Es necesario que cargue un archivo CSV con las ventas de los productos, el archivo debe contener las columnas **Sku**, **Fecha venta** y **Cantidad vendida**.")
 newsales = st.file_uploader("Choose a sales file", key='sales')
+historySales = st.file_uploader("Choose a history sales file", key='historySales')
+
+dataframeNewSales = 0
+dataframeHistorySales = 0
+
 if newsales is not None:
     # Can be used wherever a "file-like" object is accepted:
-    dataframe = pd.read_csv(newsales)
-    st.write(dataframe.head())
+    dataframeNewSales = pd.read_csv(newsales)
+    st.write(dataframeNewSales.head())
     st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
     
+if historySales is not None:
+    # Can be used wherever a "file-like" object is accepted:
+    dataframeHistorySales = pd.read_csv(historySales)
+    st.write(dataframeHistorySales.head())
+    st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
+    
+
+if newsales is not None and historySales is not None:
     if st.button("Update Sales Data"):
         try:
-            merge_files(dataframe, './All_Data.csv')
+            st.write(merge_files(dataframeNewSales, dataframeHistorySales))
             st.write("Data updated successfully")
         except Exception as e:
             st.write(f"Error: {e}")
