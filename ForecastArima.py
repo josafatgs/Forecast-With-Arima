@@ -100,7 +100,7 @@ def stationary(df, column_name):
     return forecast_weeks, forecast
 
 
-def executeForecast(dataframeProducts, dataframeAllData):
+def executeForecast(dataframeProducts, dataframeAllData, option):
     
     # Carga de datos con conversión de tipos
     products = dataframeProducts
@@ -108,7 +108,7 @@ def executeForecast(dataframeProducts, dataframeAllData):
 
     # Filtrar y seleccionar en un solo paso
     filtered_products = products.loc[
-        products['Categoría'].str.contains('DISPLAY COMPLETO', case=False, na=False), 
+        products['Categoría'].str.contains(option, case=False, na=False), 
         'SKU'
     ].drop_duplicates()
 
@@ -249,10 +249,16 @@ def merge_files(dataframe, fileTwo):
 
 st.title('Pronosticos de Ventas (ARIMA)')
 
-st.subheader('Carga de Productos :red[*]')
+option = st.selectbox(
+    "¿Qué categoría deseas pronosticar?",
+    ("DISPLAY COMPLETO", "TAPAS Y MARCOS", "CENTRO CARGA", "CAMARAS", "BATERIAS"))
+
+st.write("Seleccionaste: ", option)
+
+st.subheader('Calculo de pronosticos :red[*]')
 st.markdown("Es necesario que cargue un archivo CSV con los productos a los que deseas hacer el pronostico de ventas, el archivo debe contener las columnas **SKU** y **Categoría**.")
-uploaded_file = st.file_uploader("Choose a products file", key='products')
-uploaded_fileAllData = st.file_uploader("Choose a All Data file", key='allData')
+uploaded_file = st.file_uploader("Escoge el archivo de productos", key='products')
+uploaded_fileAllData = st.file_uploader("Escoge el archivo de historial de ventas", key='allData')
 
 dataframe = 0
 dataframeAllData = 0   
@@ -269,28 +275,31 @@ if uploaded_fileAllData is not None:
     
 if uploaded_file is not None and uploaded_fileAllData is not None:
     if st.button("Run Forecast"):
-        executeForecast(dataframe, dataframeAllData)
+        executeForecast(dataframe, dataframeAllData, str(option))
     
 st.subheader('Actualizacion de ventas')
 st.markdown("Es necesario que cargue un archivo CSV con las ventas de los productos, el archivo debe contener las columnas **Sku**, **Fecha venta** y **Cantidad vendida**.")
-newsales = st.file_uploader("Choose a sales file", key='sales')
-historySales = st.file_uploader("Choose a history sales file", key='historySales')
 
 dataframeNewSales = 0
 dataframeHistorySales = 0
 
-if newsales is not None:
-    # Can be used wherever a "file-like" object is accepted:
-    dataframeNewSales = pd.read_csv(newsales)
-    st.write(dataframeNewSales.head())
-    st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
-    
+historySales = st.file_uploader("Escoge el archivo de historial de ventas", key='historySales')
+
 if historySales is not None:
     # Can be used wherever a "file-like" object is accepted:
-    dataframeHistorySales = pd.read_csv(historySales)
+    dataframeHistorySales = pd.read_csv(historySales, parse_dates=['Fecha venta'], dayfirst=True)
+    st.markdown(f" La ultima fecha actualizada es la siguiente YY/MM/DD : :red[{dataframeHistorySales['Fecha venta'].max()}]")
     st.write(dataframeHistorySales.head())
     st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
-    
+
+newsales = st.file_uploader("Escoge el archivo de ventas", key='sales')
+
+if newsales is not None:
+    # Can be used wherever a "file-like" object is accepted:
+    dataframeNewSales = pd.read_csv(newsales, parse_dates=['Fecha venta'], dayfirst=True)
+    st.write(dataframeNewSales.head())
+    st.markdown("Antes de continuar verifica que las columnas **Sku**, **Cantidad vendida** y **Fecha venta** existan.")
+
 
 if newsales is not None and historySales is not None:
     if st.button("Update Sales Data"):
