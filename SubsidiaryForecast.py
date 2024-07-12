@@ -100,18 +100,18 @@ def stationary(df, column_name):
     return forecast_weeks, forecast
 
 
-def executeForecast(dataframeProducts, dataframeAllData, option):
+def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
     
     # Carga de datos con conversión de tipos
     products = dataframeProducts
     products.loc[:,'SKU'] = pd.to_numeric(products['SKU'], errors='coerce')
+    
+    filtered_products = 0
 
-    # Filtrar y seleccionar en un solo paso
     filtered_products = products.loc[
-        products['Categoría'].str.contains(option, case=False, na=False), 
+        products['Categoría'].str.contains(categoria, case=False, na=False),
         'SKU'
     ].drop_duplicates()
-
 
 
     data = dataframeAllData
@@ -122,6 +122,12 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
     grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
     # Agregar columna con el inicio de la semana  
     data['Week Start'] = data['Fecha venta'].dt.to_period('W-MON').dt.start_time
+    
+    data2 = data.loc[
+            data['Sucursal'].str.contains(sucursal, case=False, na=False)
+    ].drop_duplicates()
+    
+    data = data2
     
     last_week_start = data['Week Start'].max()
     next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
@@ -218,17 +224,21 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
     #forecast_df.to_csv('forecast_results_separated.csv', index=False)
 
 
-def pageForecast():
+def subsidiaryForecast():
     
-    st.title('Pronosticos de Ventas (ARIMA)')
-
-    st.subheader('Calculo de pronosticos :red[*]')
+    st.subheader('Pronostico P/Sucursal')
     
-    option = st.selectbox(
+    categoria = st.selectbox(
         "CATEGORIA",
         ("DISPLAY COMPLETO", "TAPAS Y MARCOS", "CENTRO CARGA", "CAMARAS", "BATERIAS"))
 
-    st.write("Seleccionaste: ", option)
+    st.write("Seleccionaste: ", categoria)
+    
+    sucursal = st.selectbox(
+        "SUCURSAL",
+        ("MONTERREY", "TIJUANA", "QUERETARO", "PUEBLA", "CEDIS"))
+
+    st.write("Seleccionaste: ", sucursal)
     
     st.markdown("Es necesario que cargue un archivo CSV con los productos a los que deseas hacer el pronostico de ventas, el archivo debe contener las columnas **SKU** y **Categoría**.")
     uploaded_file = st.file_uploader("Escoge el archivo de productos", key='products')
@@ -249,8 +259,6 @@ def pageForecast():
         
     if uploaded_file is not None and uploaded_fileAllData is not None:
         if st.button("Run Forecast"):
-            executeForecast(dataframe, dataframeAllData, str(option))
-
-
+            executeForecast(dataframe, dataframeAllData, str(categoria), str(sucursal))
     
-
+    
