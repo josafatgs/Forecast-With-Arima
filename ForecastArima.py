@@ -53,7 +53,7 @@ def nonStationary(df, column_name):
     forecast_values = forecast.tolist()
     
     last_week = max(df['Week'])
-    forecast_weeks = range(last_week + 1, last_week + 1 + forecast_steps)
+    forecast_weeks = range(int(last_week) + 1, int(last_week) + 1 + forecast_steps)
     last_value = df['Cantidad vendida'].iloc[-1]  # último valor conocido de la serie original
     original_forecast_values = []
     current_value = last_value
@@ -94,7 +94,7 @@ def stationary(df, column_name):
     forecast_values = forecast.tolist()
     
     last_week = max(df['Week'])
-    forecast_weeks = range(last_week + 1, last_week + 1 + forecast_steps)
+    forecast_weeks = range(int(last_week) + 1, int(last_week) + 1 + forecast_steps)
     
     
     return forecast_weeks, forecast
@@ -103,7 +103,7 @@ def stationary(df, column_name):
 def executeForecast(dataframeProducts, dataframeAllData, option):
     
     # Carga de datos con conversión de tipos
-    products = dataframeProducts
+    products = dataframeProducts.copy()
     products.loc[:,'SKU'] = pd.to_numeric(products['SKU'], errors='coerce')
 
     # Filtrar y seleccionar en un solo paso
@@ -112,40 +112,76 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
         'SKU'
     ].drop_duplicates()
 
+    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
 
-
-    data = dataframeAllData
+    data = dataframeAllData.copy()
     data.loc[:,'Sku'] = pd.to_numeric(data['Sku'], errors='coerce')
-    #data['Sku'] = data['Sku'].astype(str)
     data.loc[:,'Cantidad vendida'] = pd.to_numeric(data['Cantidad vendida'], errors='coerce')
     
-    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
-    # Agregar columna con el inicio de la semana  
+    
+    # Convertir 'Fecha venta' a datetime si no está en ese formato
+    data['Fecha venta'] = pd.to_datetime(data['Fecha venta'], errors='coerce')
+
+    # Agregar columna con el inicio de la semana
+    data['Week'] = data.groupby(grouper).ngroup() + 1
     data['Week Start'] = data['Fecha venta'].dt.to_period('W-MON').dt.start_time
     
+    first_week_start = data['Week Start'].min()
     last_week_start = data['Week Start'].max()
+    
+
+    
     next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
 
-        
     results = []
+    
+    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
+    all_weeks = pd.DataFrame({'Fecha venta': pd.date_range(start=first_week_start, end=last_week_start, freq='W-MON')})
+    all_weeks['Week'] = all_weeks.groupby(grouper).ngroup() + 1
+    
+    #all_weeks.to_csv('all_weeks.csv', index=False)
 
     for sku in filtered_products:
+        
         print(f'Processing SKU {sku}...')
-            
-        forecast_values = []
-        data_to_plot = 0
         
-        data_to_plot = data.query(f"Sku == {sku}")
-
-        # Agregar columna con el número de semana
-        data_to_plot['Week'] = data_to_plot.groupby(grouper).ngroup() + 1
-        
-    
+        # Filtrar datos por SKU
+        data_to_plot = data[data['Sku'] == sku].copy()
 
         # Convertir 'Cantidad vendida' a numérico
         data_to_plot['Cantidad vendida'] = pd.to_numeric(data_to_plot['Cantidad vendida'], errors='coerce')
 
-        df = data_to_plot.groupby('Week', as_index=False)['Cantidad vendida'].sum()
+        default_rows = []
+        # Llenar las semanas faltantes con valores por defecto
+        for week_start in all_weeks['Fecha venta']:
+            if not ((data_to_plot['Week Start'] == week_start).any()):
+                default_row = {
+                    'Sucursal': 'CEDIS',
+                    'Sku': 'sku',  # Cambia 'default_sku' según tus necesidades
+                    'Modelo': '',
+                    'Nombre producto': '',
+                    'Folio de venta': '',
+                    'Cliente': 'PUBLICO EN GENERAL',
+                    'Fecha venta': week_start,
+                    'Cantidad vendida': 0.0,
+                    'Importe s/impuestos': 0.0,
+                    'Week': all_weeks.loc[all_weeks['Fecha venta'] == week_start, 'Week'].values[0],
+                    'Week Start': week_start
+                }
+                default_rows.append(default_row)
+                
+        if default_rows:
+            default_df = pd.DataFrame(default_rows)
+            data_to_plot = pd.concat([data_to_plot, default_df], ignore_index=True)
+
+        data_to_plot = data_to_plot.sort_values(by='Week Start')
+        
+        
+        data_to_plot = data_to_plot.groupby('Week', as_index=False)['Cantidad vendida'].sum()
+        
+        df = data_to_plot.copy()
+        
+        #df.to_csv('example_grouped.csv', index=False)
         
         if df['Cantidad vendida'].max() == df['Cantidad vendida'].min():
             continue
@@ -171,44 +207,48 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
             print('The series is stationary')
             # Obtener la serie a modelar
             
-            try:
-                forecast_weeks, original_forecast_values = stationary(df, 'Cantidad vendida')
-            except Exception as E:
-                print(f"Error {E}")
-                continue
+            forecast_weeks, original_forecast_values = stationary(df, 'Cantidad vendida')
+            
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+            
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
             
             
         elif test_one['p-value'] > alpha and test_two['p-value'] > alpha:
             print('The series is non-stationary')
             
-            try:
-                forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
-            except Exception as E:
-                print(f"Error {E}")
-                continue
+            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+                
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
             
         elif test_one['p-value'] <= alpha and test_two['p-value'] > alpha:
             print('The series is difference stationary')
             
-            try:
-                forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
-            except Exception as E:
-                print(f"Error {E}")
-                continue
+            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+                
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
             
         elif test_one['p-value'] > alpha and test_two['p-value'] <= alpha:
             print('The series is trend stationary')
             
-            try:
-                forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
-            except Exception as E:
-                print(f"Error {E}")
-                continue
             
-        numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
-        numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
-        
-        results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                
+            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+                
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                
+            
+            
 
     columns = ['SKU'] + next_week_starts
     forecast_df = pd.DataFrame(results, columns=columns)
