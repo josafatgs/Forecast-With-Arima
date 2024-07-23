@@ -47,7 +47,7 @@ def nonStationary(df, column_name):
     model = ARIMA(sales, order=(p, d, q))
     model_fit = model.fit()
     
-    forecast_steps = 5
+    forecast_steps = 4
 
     forecast = model_fit.forecast(steps=forecast_steps)
     forecast_values = forecast.tolist()
@@ -87,17 +87,18 @@ def stationary(df, column_name):
     model = ARIMA(sales, order=(p, d, q))
     model_fit = model.fit()
     
-    forecast_steps = 5
+    forecast_steps = 4
     original_forecast_values = []
 
     forecast = model_fit.forecast(steps=forecast_steps)
     forecast_values = forecast.tolist()
     
+    
     last_week = max(df['Week'])
     forecast_weeks = range(int(last_week) + 1, int(last_week) + 1 + forecast_steps)
     
     
-    return forecast_weeks, forecast
+    return forecast_weeks, forecast_values
 
 
 def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
@@ -121,7 +122,7 @@ def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
     data['Week Start'] = data['Fecha venta'].dt.to_period('W-MON').dt.start_time
     first_week_start = data['Week Start'].min()
     last_week_start = data['Week Start'].max()
-    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
+    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 5)]
 
     # Crear DataFrame de todas las semanas en el rango
     all_weeks = pd.DataFrame({'Fecha venta': pd.date_range(start=first_week_start, end=last_week_start, freq='W-MON')})
@@ -151,7 +152,7 @@ def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
         # Agrupar por semana y sumar la cantidad vendida
         data_to_plot = data_to_plot.groupby('Week Start', as_index=False)['Cantidad vendida'].sum()
 
-        if data_to_plot['Cantidad vendida'].max() == data_to_plot['Cantidad vendida'].min() or len(data_to_plot) < 5:
+        if data_to_plot['Cantidad vendida'].max() == data_to_plot['Cantidad vendida'].min():
             continue
 
         try:
@@ -170,13 +171,15 @@ def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
             forecast_weeks, forecast_values = nonStationary(data_to_plot, 'Cantidad vendida')
 
         forecast_values = [round(value) for value in forecast_values]
+        forecast_values.append(sum(forecast_values))
         forecast_values = pd.Series(forecast_values).replace([np.inf, -np.inf], np.nan)
         results.append([sku] + forecast_values.tolist())
 
     # Crear DataFrame de resultados y mostrarlo
     columns = ['SKU'] + next_week_starts
     forecast_df = pd.DataFrame(results, columns=columns)
-    print(forecast_df)
+    
+    st.write(forecast_df)
 
 
 def subsidiaryForecast():

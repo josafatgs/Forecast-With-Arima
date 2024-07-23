@@ -47,10 +47,11 @@ def nonStationary(df, column_name):
     model = ARIMA(sales, order=(p, d, q))
     model_fit = model.fit()
     
-    forecast_steps = 5
+    forecast_steps = 4
 
     forecast = model_fit.forecast(steps=forecast_steps)
     forecast_values = forecast.tolist()
+    
     
     last_week = max(df['Week'])
     forecast_weeks = range(int(last_week) + 1, int(last_week) + 1 + forecast_steps)
@@ -64,7 +65,6 @@ def nonStationary(df, column_name):
         current_value = original_value
     
     return forecast_weeks, original_forecast_values
-
 
 
 def stationary(df, column_name):
@@ -87,7 +87,7 @@ def stationary(df, column_name):
     model = ARIMA(sales, order=(p, d, q))
     model_fit = model.fit()
     
-    forecast_steps = 5
+    forecast_steps = 4
     original_forecast_values = []
 
     forecast = model_fit.forecast(steps=forecast_steps)
@@ -96,8 +96,7 @@ def stationary(df, column_name):
     last_week = max(df['Week'])
     forecast_weeks = range(int(last_week) + 1, int(last_week) + 1 + forecast_steps)
     
-    
-    return forecast_weeks, forecast
+    return forecast_weeks, forecast_values
 
 
 def executeForecast(dataframeProducts, dataframeAllData, option):
@@ -128,10 +127,9 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
     
     first_week_start = data['Week Start'].min()
     last_week_start = data['Week Start'].max()
-    
 
     
-    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
+    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 5)]
 
     results = []
     
@@ -188,9 +186,6 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
         
         if df['Cantidad vendida'].max() == df['Cantidad vendida'].min():
             continue
-        
-        if len(df) < 5:
-            continue
 
 
         try:
@@ -212,6 +207,9 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
             
             forecast_weeks, original_forecast_values = stationary(df, 'Cantidad vendida')
             
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
             numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
             numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
             
@@ -222,7 +220,9 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
             print('The series is non-stationary')
             
             forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
-                
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
             numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
             numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
                 
@@ -232,7 +232,9 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
             print('The series is difference stationary')
             
             forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
-                
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
             numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
             numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
                 
@@ -244,7 +246,9 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
             
                 
             forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
-                
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
             numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
             numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
                 
@@ -253,7 +257,7 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
             
             
 
-    columns = ['SKU'] + next_week_starts
+    columns = ['SKU'] + next_week_starts + ['Total']
     forecast_df = pd.DataFrame(results, columns=columns)
     
     st.write(forecast_df)
