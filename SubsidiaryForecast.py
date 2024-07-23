@@ -103,79 +103,169 @@ def stationary(df, column_name):
 
 def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
     
-    # Copia de los datos y conversión de tipos
+        # Carga de datos con conversión de tipos
     products = dataframeProducts.copy()
-    products['SKU'] = pd.to_numeric(products['SKU'], errors='coerce')
+    products.loc[:,'SKU'] = pd.to_numeric(products['SKU'], errors='coerce')
 
-    # Filtrar y seleccionar productos por categoría
-    filtered_products = products.loc[products['Categoría'].str.contains(categoria, case=False, na=False), 'SKU'].drop_duplicates()
+    # Filtrar y seleccionar en un solo paso
+    filtered_products = products.loc[
+        products['Categoría'].str.contains(categoria, case=False, na=False), 
+        'SKU'
+    ].drop_duplicates()
+
+    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
 
     data = dataframeAllData.copy()
-    data['Sku'] = pd.to_numeric(data['Sku'], errors='coerce')
-    data['Cantidad vendida'] = pd.to_numeric(data['Cantidad vendida'], errors='coerce')
+    data.loc[:,'Sku'] = pd.to_numeric(data['Sku'], errors='coerce')
+    data.loc[:,'Cantidad vendida'] = pd.to_numeric(data['Cantidad vendida'], errors='coerce')
+    
+    
+    # Convertir 'Fecha venta' a datetime si no está en ese formato
     data['Fecha venta'] = pd.to_datetime(data['Fecha venta'], errors='coerce')
 
-    # Filtrar datos por sucursal
-    data = data[data['Sucursal'].str.contains(sucursal, case=False, na=False)].drop_duplicates()
-
-    # Generar semanas para el análisis
+    # Agregar columna con el inicio de la semana
+    data['Week'] = data.groupby(grouper).ngroup() + 1
     data['Week Start'] = data['Fecha venta'].dt.to_period('W-MON').dt.start_time
+    
+    data2 = data.loc[
+            data['Sucursal'].str.contains(sucursal, case=False, na=False)
+    ].drop_duplicates()
+    
+    data = data2
+    
     first_week_start = data['Week Start'].min()
     last_week_start = data['Week Start'].max()
-    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 5)]
+    
 
-    # Crear DataFrame de todas las semanas en el rango
-    all_weeks = pd.DataFrame({'Fecha venta': pd.date_range(start=first_week_start, end=last_week_start, freq='W-MON')})
-    all_weeks['Week'] = all_weeks.index + 1
+    
+    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
 
     results = []
+    
+    grouper = pd.Grouper(key='Fecha venta', freq='W-MON')
+    all_weeks = pd.DataFrame({'Fecha venta': pd.date_range(start=first_week_start, end=last_week_start, freq='W-MON')})
+    all_weeks['Week'] = all_weeks.groupby(grouper).ngroup() + 1
 
     for sku in filtered_products:
         if sku < 1000:
             continue
 
-        print(f'Processing SKU {sku}...')
-
-        # Filtrar datos por SKU
         data_to_plot = data[data['Sku'] == sku].copy()
 
+        # Convertir 'Cantidad vendida' a numérico
+        data_to_plot['Cantidad vendida'] = pd.to_numeric(data_to_plot['Cantidad vendida'], errors='coerce')
+
+        default_rows = []
         # Llenar las semanas faltantes con valores por defecto
-        missing_weeks = all_weeks[~all_weeks['Fecha venta'].isin(data_to_plot['Week Start'])]
-        if not missing_weeks.empty:
-            default_rows = [{'Sucursal': sucursal, 'Sku': sku, 'Fecha venta': week_start, 'Cantidad vendida': 0.0,
-                             'Week Start': week_start} for week_start in missing_weeks['Fecha venta']]
+        for week_start in all_weeks['Fecha venta']:
+            if not ((data_to_plot['Week Start'] == week_start).any()):
+                default_row = {
+                    'Sucursal': sucursal,
+                    'Sku': sku,  # Cambia 'default_sku' según tus necesidades
+                    'Modelo': '',
+                    'Nombre producto': '',
+                    'Folio de venta': '',
+                    'Cliente': 'PUBLICO EN GENERAL',
+                    'Fecha venta': week_start,
+                    'Cantidad vendida': 0.0,
+                    'Importe s/impuestos': 0.0,
+                    'Week': all_weeks.loc[all_weeks['Fecha venta'] == week_start, 'Week'].values[0],
+                    'Week Start': week_start
+                }
+                default_rows.append(default_row)
+                
+        if default_rows:
             default_df = pd.DataFrame(default_rows)
             data_to_plot = pd.concat([data_to_plot, default_df], ignore_index=True)
 
-        data_to_plot.sort_values(by='Week Start', inplace=True)
-
-        # Agrupar por semana y sumar la cantidad vendida
-        data_to_plot = data_to_plot.groupby('Week Start', as_index=False)['Cantidad vendida'].sum()
-
-        if data_to_plot['Cantidad vendida'].max() == data_to_plot['Cantidad vendida'].min():
+        data_to_plot = data_to_plot.sort_values(by='Week Start')
+        
+        
+        data_to_plot = data_to_plot.groupby('Week', as_index=False)['Cantidad vendida'].sum()
+        
+        df = data_to_plot.copy()
+        
+        #df.to_csv('example_grouped.csv', index=False)
+        
+        if df['Cantidad vendida'].max() == df['Cantidad vendida'].min():
             continue
+        
+        if len(df) < 5:
+            continue
+
 
         try:
-            # Aplicar pruebas de estacionariedad
-            adf_result = adf_test(data_to_plot['Cantidad vendida'].dropna())
-            kpss_result = kpss_test(data_to_plot['Cantidad vendida'].dropna())
-        except Exception as e:
-            print(f"Error testing stationarity for SKU {sku}: {e}")
+            # Apply ADF test on the series
+            test_one = adf_test(df['Cantidad vendida'].dropna())
+
+            # Apply KPSS test on the series
+            test_two = kpss_test(df['Cantidad vendida'].dropna())
+        
+        except Exception as E:
             continue
 
-        # Comparar p-valores y decidir el modelo a usar
+        # Compare p-values and make decision
         alpha = 0.05
-        if adf_result['p-value'] <= alpha and kpss_result['p-value'] <= alpha:
-            forecast_weeks, forecast_values = stationary(data_to_plot, 'Cantidad vendida')
-        else:
-            forecast_weeks, forecast_values = nonStationary(data_to_plot, 'Cantidad vendida')
 
-        forecast_values = [round(value) for value in forecast_values]
-        forecast_values.append(sum(forecast_values))
-        forecast_values = pd.Series(forecast_values).replace([np.inf, -np.inf], np.nan)
-        results.append([sku] + forecast_values.tolist())
+        if test_one['p-value'] <= alpha and test_two['p-value'] <= alpha:
+            print('The series is stationary')
+            # Obtener la serie a modelar
+            
+            forecast_weeks, original_forecast_values = stationary(df, 'Cantidad vendida')
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
+            
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+            
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+            
+            
+        elif test_one['p-value'] > alpha and test_two['p-value'] > alpha:
+            print('The series is non-stationary')
+            
+            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
+                
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+            
+        elif test_one['p-value'] <= alpha and test_two['p-value'] > alpha:
+            print('The series is difference stationary')
+            
+            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
+                
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+            
+        elif test_one['p-value'] > alpha and test_two['p-value'] <= alpha:
+            print('The series is trend stationary')
+            
+            
+                
+            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+            
+            original_forecast_values = [round(value) for value in original_forecast_values]
+            original_forecast_values.append(sum(original_forecast_values))
+            
+            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                
+            
+            
 
-    # Crear DataFrame de resultados y mostrarlo
     columns = ['SKU'] + next_week_starts
     forecast_df = pd.DataFrame(results, columns=columns)
     
