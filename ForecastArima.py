@@ -143,6 +143,9 @@ def executeForecast(dataframeProducts, dataframeAllData, option):
 
     for sku in filtered_products:
         
+        if sku < 1000:
+            continue
+        
         print(f'Processing SKU {sku}...')
         
         # Filtrar datos por SKU
