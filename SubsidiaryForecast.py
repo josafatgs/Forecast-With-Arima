@@ -138,7 +138,7 @@ def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
     
 
     
-    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 6)]
+    next_week_starts = [last_week_start + pd.Timedelta(weeks=i) for i in range(1, 5)]
 
     results = []
     
@@ -266,7 +266,7 @@ def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
             
             
 
-    columns = ['SKU'] + next_week_starts
+    columns = ['SKU'] + next_week_starts + ['Total']
     forecast_df = pd.DataFrame(results, columns=columns)
     
     st.write(forecast_df)
