@@ -208,60 +208,78 @@ def executeForecast(dataframeProducts, dataframeAllData, categoria, sucursal):
         alpha = 0.05
 
         if test_one['p-value'] <= alpha and test_two['p-value'] <= alpha:
-            print('The series is stationary')
+            # print('The series is stationary')
             # Obtener la serie a modelar
             
-            forecast_weeks, original_forecast_values = stationary(df, 'Cantidad vendida')
+            try:
+                
+                forecast_weeks, original_forecast_values = stationary(df, 'Cantidad vendida')
             
-            original_forecast_values = [round(value) for value in original_forecast_values]
-            original_forecast_values.append(sum(original_forecast_values))
-            
-            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
-            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
-            
-            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                original_forecast_values = [round(value) for value in original_forecast_values]
+                original_forecast_values.append(sum(original_forecast_values))
+                
+                numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+                numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                
+                results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                
+            except:
+                continue
             
             
         elif test_one['p-value'] > alpha and test_two['p-value'] > alpha:
-            print('The series is non-stationary')
+            #print('The series is non-stationary')
             
-            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+            try:
+                
+                forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
             
-            original_forecast_values = [round(value) for value in original_forecast_values]
-            original_forecast_values.append(sum(original_forecast_values))
+                original_forecast_values = [round(value) for value in original_forecast_values]
+                original_forecast_values.append(sum(original_forecast_values))
+                    
+                numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+                numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                    
+                results.append([sku] +  [str(x) for x in numeric_forecast_values])
                 
-            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
-            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
-                
-            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+            except:
+                continue
             
         elif test_one['p-value'] <= alpha and test_two['p-value'] > alpha:
-            print('The series is difference stationary')
+            #print('The series is difference stationary')
             
-            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+            try:
+                
+                forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
             
-            original_forecast_values = [round(value) for value in original_forecast_values]
-            original_forecast_values.append(sum(original_forecast_values))
+                original_forecast_values = [round(value) for value in original_forecast_values]
+                original_forecast_values.append(sum(original_forecast_values))
+                    
+                numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+                numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                    
+                results.append([sku] +  [str(x) for x in numeric_forecast_values])
                 
-            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
-            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
-                
-            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+            except:
+                continue
             
         elif test_one['p-value'] > alpha and test_two['p-value'] <= alpha:
-            print('The series is trend stationary')
+            #print('The series is trend stationary')
             
-            
+            try:
                 
-            forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
+                forecast_weeks, original_forecast_values = nonStationary(df, 'Cantidad vendida')
             
-            original_forecast_values = [round(value) for value in original_forecast_values]
-            original_forecast_values.append(sum(original_forecast_values))
-            
-            numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
-            numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                original_forecast_values = [round(value) for value in original_forecast_values]
+                original_forecast_values.append(sum(original_forecast_values))
                 
-            results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                numeric_forecast_values = pd.to_numeric(original_forecast_values, errors='coerce')
+                numeric_forecast_values = pd.Series(numeric_forecast_values).replace([np.inf, -np.inf], np.nan)
+                    
+                results.append([sku] +  [str(x) for x in numeric_forecast_values])
+                
+            except:
+                continue
                 
             
             
